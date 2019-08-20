@@ -1,6 +1,7 @@
 #pragma once
 
 #include <goofit/PDFs/physics/resonances/Resonance.h>
+#include <goofit/PDFs/physics/lineshapes/Lineshape.h>
 
 #include <array>
 
@@ -26,9 +27,7 @@ class kMatrix : public ResonancePdf {
             Variable mass,
             Variable width,
             unsigned int L,
-            unsigned int Mpair,
-            FF FormFac    = FF::BL_Prime,
-            fptype radius = 1.5);
+            unsigned int Mpair);
 
     ~kMatrix() override = default;
 };
