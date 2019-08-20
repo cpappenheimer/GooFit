@@ -159,9 +159,7 @@ kMatrix::kMatrix(std::string name,
                  Variable mass,
                  Variable width,
                  unsigned int L,
-                 unsigned int Mpair,
-                 FF FormFac,
-                 fptype radius)
+                 unsigned int Mpair)
     : ResonancePdf("kMatrix", beta1_r, beta1_i) {
     if(fscat.size() != NCHANNELS)
         throw GooFit::GeneralError("You must have {} channels in fscat, not {}", NCHANNELS, fscat.size());
