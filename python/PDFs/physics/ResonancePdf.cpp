@@ -6,6 +6,10 @@
 #include <goofit/Variable.h>
 #include <goofit/docs/PDFs/physics/resonances/Resonance.h>
 
+#ifdef GOOFIT_KMATRIX
+#include <goofit/PDFs/physics/resonances/kMatrix.h>
+#endif
+
 using namespace GooFit;
 
 void init_ResonancePdf(py::module &m) {
@@ -48,6 +52,45 @@ void init_ResonancePdf(py::module &m) {
              "width"_a,
              "sp"_a,
              "cyc"_a);
+
+#ifdef GOOFIT_KMATRIX
+    py::class_<Resonances::kMatrix, ResonancePdf>(m_ls, "kMatrix")
+      .def(py::init<std::string,
+	   unsigned int,
+	   bool,
+	   Variable,
+	   Variable,
+	   Variable,
+	   Variable,
+	   Variable,
+	   Variable,
+	   std::vector<Variable>,
+	   std::vector<Variable>,
+	   Variable,
+	   Variable,
+	   unsigned int,
+	   unsigned int,
+	   FF,
+	   fptype>(),
+	   "kMatrix resonance pdf",
+	   "name"_a,
+	   "pterm"_a,
+	   "is_pole"_a,
+	   "beta1_r"_a,
+	   "beta2_r"_a,
+	   "sA0"_a,
+	   "sA"_a,
+	   "s0_prod"_a,
+	   "s0_scatt"_a,
+	   "fscat"_a,
+	   "poles"_a,
+	   "mass"_a,
+	   "width"_a,
+	   "L"_a,
+	   "Mpair"_a,
+	   "FormFac"_a = FF::BL_Prime,
+	   "radius"_a  = 1.5);
+#endif
 
     py::class_<Resonances::NonRes, ResonancePdf>(m_ls, "NonRes")
         .def(py::init<std::string, Variable, Variable>(), "Constructor for NonResonant", "name"_a, "ar"_a, "ai"_a);
