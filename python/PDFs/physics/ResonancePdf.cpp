@@ -69,9 +69,7 @@ void init_ResonancePdf(py::module &m) {
 	   Variable,
 	   Variable,
 	   unsigned int,
-	   unsigned int,
-	   FF,
-	   fptype>(),
+	   unsigned int>(),
 	   "kMatrix resonance pdf",
 	   "name"_a,
 	   "pterm"_a,
@@ -87,9 +85,7 @@ void init_ResonancePdf(py::module &m) {
 	   "mass"_a,
 	   "width"_a,
 	   "L"_a,
-	   "Mpair"_a,
-	   "FormFac"_a = FF::BL_Prime,
-	   "radius"_a  = 1.5);
+	   "Mpair"_a);
 #endif
 
     py::class_<Resonances::NonRes, ResonancePdf>(m_ls, "NonRes")
