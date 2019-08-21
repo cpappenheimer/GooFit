@@ -15,7 +15,7 @@
 
 namespace GooFit {
 
-__device__ fpcomplex kMatrixRes(fptype Mpair, fptype m1, fptype m2, ParameterContainer &pc) {
+__device__ fpcomplex kMatrixRes(fptype m12, fptype m13, fptype m23, ParameterContainer &pc) {
 
     unsigned int pterm = pc.getConstant(1);
     bool is_pole       = pc.getConstant(2) == 1;
@@ -40,7 +40,7 @@ __device__ fpcomplex kMatrixRes(fptype Mpair, fptype m1, fptype m2, ParameterCon
         pmasses(i) = pc.getParameter(idx++);
     }
 
-    fptype s = POW2(Mpair);
+    fptype s = POW2(mPiPlus);
 
     // constructKMatrix
 
