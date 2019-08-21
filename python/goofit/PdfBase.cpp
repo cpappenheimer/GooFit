@@ -16,6 +16,7 @@ using namespace GooFit;
 
 void init_PdfBase(py::module &m) {
     py::class_<PdfBase>(m, "PdfBase")
+        .def("getName", &PdfBase::getName)
         .def("setData", (void (PdfBase::*)(DataSet *)) & PdfBase::setData, "ptr"_a = nullptr)
         .def("getData", &PdfBase::getData)
         .def("getParameters", &PdfBase::getParameters)
