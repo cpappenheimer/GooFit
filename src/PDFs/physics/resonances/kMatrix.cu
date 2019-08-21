@@ -81,6 +81,8 @@ __device__ fpcomplex kMatrixFunction(fptype Mpair, fptype m1, fptype m2, Paramet
     bool is_pole       = pc.getConstant(2) == 1;
 
     unsigned int idx = 0;
+    fptype beta1_r   = pc.getParameter(idx++);
+    fptype beta1_i   = pc.getParameter(idx++);
     fptype sA0       = pc.getParameter(idx++);
     fptype sA        = pc.getParameter(idx++);
     fptype s0_prod   = pc.getParameter(idx++);
@@ -135,7 +137,8 @@ __device__ fpcomplex kMatrixFunction(fptype Mpair, fptype m1, fptype m2, Paramet
             fptype pole = couplings(i, pterm);
             M += F(0, i) * pole;
         }
-        return M / (POW2(pmasses(pterm)) - s);
+        M *= 1 / (POW2(pmasses(pterm)) - s);
+	M *= fpcomplex(beta1_r, beta1_i);
     } else { // prod
         return F(0, pterm) * (1 - s0_prod) / (s - s0_prod);
     }
