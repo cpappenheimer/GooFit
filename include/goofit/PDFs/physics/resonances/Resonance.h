@@ -4,6 +4,8 @@
 #include <goofit/PDFs/physics/DalitzPlotHelpers.h>
 #include <goofit/detail/Complex.h>
 
+#define NCHANNELS 5
+
 namespace GooFit {
 
 typedef fpcomplex (*resonance_function_ptr)(fptype, fptype, fptype, ParameterContainer &pc);
