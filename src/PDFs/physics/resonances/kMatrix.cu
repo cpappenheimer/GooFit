@@ -90,7 +90,7 @@ __device__ fpcomplex kMatrixRes(fptype Mpair, fptype m1, fptype m2, ParameterCon
     }
 } //kMatrixFunction
 
-__device__ resonance_function_ptr ptr_to_kMatrix = kMatrixRes;
+__device__ resonance_function_ptr ptr_to_kMatrix_res = kMatrixRes;
 
 namespace Resonances {
 
@@ -132,7 +132,7 @@ kMatrix::kMatrix(std::string name,
         registerParameter(poles.at(i));
     }
 
-    registerFunction("ptr_to_kMatrix", ptr_to_kMatrix);
+    registerFunction("ptr_to_kMatrix_res", ptr_to_kMatrix_res);
 
     initialize();
     }
