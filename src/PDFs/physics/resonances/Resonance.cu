@@ -1,7 +1,10 @@
+#include <goofit/detail/compute_inverse5.h>
 #include <goofit/PDFs/physics/resonances/Resonance.h>
 
 #include <Eigen/Core>
 #include <Eigen/LU>
+
+#include "../lineshapes/Common.h"
 
 namespace GooFit {
 
