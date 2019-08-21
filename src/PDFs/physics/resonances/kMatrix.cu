@@ -7,7 +7,7 @@
 #include <Eigen/Core>
 #include <Eigen/LU>
 
-#include "Common.h"
+#include "../lineshapes/Common.h"
 
 #if THRUST_DEVICE_SYSTEM == THRUST_DEVICE_SYSTEM_CUDA
 #include <goofit/detail/compute_inverse5.h>
@@ -23,7 +23,7 @@ __device__ fptype phsp_fourPi(fptype s) {
     else
         return 0.00051 + -0.01933 * s + 0.13851 * s * s + -0.20840 * s * s * s + -0.29744 * s * s * s * s
                + 0.13655 * s * s * s * s * s + 1.07885 * s * s * s * s * s * s;
-
+}
 
 __device__ Eigen::Array<fpcomplex, NCHANNELS, NCHANNELS>
 getPropagator(const Eigen::Array<fptype, NCHANNELS, NCHANNELS> &kMatrix,
@@ -67,7 +67,7 @@ getPropagator(const Eigen::Array<fptype, NCHANNELS, NCHANNELS> &kMatrix,
 #else
     return Eigen::inverse(tMatrix);
 #endif
-}
+} // getPropagator
 
 __device__ fpcomplex kMatrixFunction(fptype Mpair, fptype m1, fptype m2, ParameterContainer &pc) {
     // const fptype mass  = GOOFIT_GET_PARAM(2);
@@ -138,11 +138,11 @@ __device__ fpcomplex kMatrixFunction(fptype Mpair, fptype m1, fptype m2, Paramet
             M += F(0, i) * pole;
         }
         M *= 1 / (POW2(pmasses(pterm)) - s);
-	M *= fpcomplex(beta1_r, beta1_i);
+	return M * fpcomplex(beta1_r, beta1_i);
     } else { // prod
         return F(0, pterm) * (1 - s0_prod) / (s - s0_prod);
     }
-}
+} //kMatrixFunction
 
 __device__ resonance_function_ptr ptr_to_kMatrix = kMatrixFunction;
 
@@ -163,7 +163,7 @@ kMatrix::kMatrix(std::string name,
                  Variable width,
                  unsigned int L,
                  unsigned int Mpair)
-    : ResonancePdf("kMatrix", beta1_r, beta1_i) {
+    : ResonancePdf("kMatrix", name, beta1_r, beta1_i) {
     if(fscat.size() != NCHANNELS)
         throw GooFit::GeneralError("You must have {} channels in fscat, not {}", NCHANNELS, fscat.size());
 
@@ -189,5 +189,7 @@ kMatrix::kMatrix(std::string name,
     registerFunction("ptr_to_kMatrix", ptr_to_kMatrix);
 
     initialize();
+    }
 
+} // namespace Resonances
 } // namespace GooFit
