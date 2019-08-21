@@ -16,19 +16,11 @@
 namespace GooFit {
 
 __device__ fpcomplex kMatrixRes(fptype Mpair, fptype m1, fptype m2, ParameterContainer &pc) {
-    // const fptype mass  = GOOFIT_GET_PARAM(2);
-    // const fptype width = GOOFIT_GET_PARAM(3);
-    // const unsigned int L = GOOFIT_GET_INT(4);
-    // const fptype radius = GOOFIT_GET_CONST(7);
-
-    // const fptype pTerm = GOOFIT_GET_INT();
 
     unsigned int pterm = pc.getConstant(1);
     bool is_pole       = pc.getConstant(2) == 1;
 
     unsigned int idx = 0;
-    fptype beta1_r   = pc.getParameter(idx++);
-    fptype beta1_i   = pc.getParameter(idx++);
     fptype sA0       = pc.getParameter(idx++);
     fptype sA        = pc.getParameter(idx++);
     fptype s0_prod   = pc.getParameter(idx++);
@@ -83,8 +75,8 @@ __device__ fpcomplex kMatrixRes(fptype Mpair, fptype m1, fptype m2, ParameterCon
             fptype pole = couplings(i, pterm);
             M += F(0, i) * pole;
         }
-        M *= 1 / (POW2(pmasses(pterm)) - s);
-	return M * fpcomplex(beta1_r, beta1_i);
+        return M / (POW2(pmasses(pterm)) - s);
+
     } else { // prod
         return F(0, pterm) * (1 - s0_prod) / (s - s0_prod);
     }
