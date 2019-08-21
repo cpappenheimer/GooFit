@@ -16,8 +16,8 @@ class kMatrix : public ResonancePdf {
     kMatrix(std::string name,
             unsigned int pterm, //< 0 or 1
             bool is_pole,       //< False for prod
-	    Variable beta1_r,
-	    Variable beta1_i,
+	    Variable a_r,
+	    Variable a_i,
             Variable sA0,
             Variable sA,
             Variable s0_prod,
