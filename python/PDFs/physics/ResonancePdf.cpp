@@ -15,8 +15,11 @@ using namespace GooFit;
 void init_ResonancePdf(py::module &m) {
     auto m_ls = m.def_submodule("Resonances");
 
-    py::class_<ResonancePdf, GooPdf>(m, "ResonancePdf").def_static("help", []() {
-        return HelpPrinter(ResonancePdf_docs);
+    py::class_<ResonancePdf, GooPdf>(m, "ResonancePdf")
+        .def("get_amp_real", &ResonancePdf::get_amp_real)
+        .def("get_amp_img", &ResonancePdf::get_amp_img)
+        .def_static("help", []() {
+          return HelpPrinter(ResonancePdf_docs);
     });
 
     py::class_<Resonances::RBW, ResonancePdf>(m_ls, "RBW")
