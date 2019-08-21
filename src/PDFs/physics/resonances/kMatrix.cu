@@ -89,8 +89,8 @@ namespace Resonances {
 kMatrix::kMatrix(std::string name,
                  unsigned int pterm,
                  bool is_pole,
-		 Variable beta1_r,
-		 Variable beta1_i,
+		 Variable a_r,
+		 Variable a_i,
                  Variable sA0,
                  Variable sA,
                  Variable s0_prod,
@@ -101,7 +101,7 @@ kMatrix::kMatrix(std::string name,
                  Variable width,
                  unsigned int L,
                  unsigned int Mpair)
-    : ResonancePdf("kMatrix", name, beta1_r, beta1_i) {
+    : ResonancePdf("kMatrix", name, a_r, a_i) {
     if(fscat.size() != NCHANNELS)
         throw GooFit::GeneralError("You must have {} channels in fscat, not {}", NCHANNELS, fscat.size());
 
@@ -126,7 +126,7 @@ kMatrix::kMatrix(std::string name,
 
     registerFunction("ptr_to_kMatrix_res", ptr_to_kMatrix_res);
 
-    initialize();
+//    initialize();
     }
 
 } // namespace Resonances
