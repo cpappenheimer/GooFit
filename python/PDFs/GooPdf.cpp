@@ -15,6 +15,7 @@ void init_GooPdf(py::module &m) {
         .def("makeGrid", &GooPdf::makeGrid)
         .def("evaluateAtPoints", &GooPdf::evaluateAtPoints)
         .def("setParameterConstantness", &GooPdf::setParameterConstantness)
+        .def("hasAnalyticIntegral", &GooPdf::hasAnalyticIntegral)
         .def("evaluatePdf",
              [](GooPdf &self, Observable &var) {
                  auto grid     = self.makeGrid();
