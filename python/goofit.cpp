@@ -16,6 +16,7 @@ void init_CombinePdf(py::module &);
 void init_Version(py::module &);
 void init_FitControl(py::module &);
 void init_Application(py::module &);
+void init_abort(py::module &);
 
 // Basic
 void init_ArgusPdf(py::module &);
@@ -86,6 +87,7 @@ PYBIND11_MODULE(_goofit, m) {
     init_Version(m);
     init_FitControl(m);
     init_Application(m);
+    init_abort(m);
 
     // Basic
     init_ArgusPdf(m);
