@@ -9,6 +9,9 @@ using namespace GooFit;
 
 void init_GooPdf(py::module &m) {
     py::class_<GooPdf, PdfBase>(m, "GooPdf")
+        .def("get_bin_grid_size", &GooPdf::get_bin_grid_size)
+        .def("get_bin_grid_volume", &GooPdf::get_bin_grid_volume)
+        .def("reduce_with_bins", &GooPdf::reduce_with_bins)
         .def("normalize", &GooPdf::normalize)
         .def("copyParams", (void (GooPdf::*)()) & GooPdf::copyParams)
         .def("normalize", &GooPdf::normalize)
