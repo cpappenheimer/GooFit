@@ -69,8 +69,6 @@ void init_ResonancePdf(py::module &m) {
 	   Variable,
 	   std::vector<Variable>,
 	   std::vector<Variable>,
-	   Variable,
-	   Variable,
 	   unsigned int,
 	   unsigned int>(),
 	   "kMatrix resonance pdf",
@@ -85,8 +83,6 @@ void init_ResonancePdf(py::module &m) {
 	   "s0_scatt"_a,
 	   "fscat"_a,
 	   "poles"_a,
-	   "mass"_a,
-	   "width"_a,
 	   "L"_a,
 	   "Mpair"_a);
 #endif
