@@ -97,8 +97,6 @@ kMatrix::kMatrix(std::string name,
                  Variable s0_scatt,
                  std::vector<Variable> fscat,
                  std::vector<Variable> poles,
-                 Variable mass,
-                 Variable width,
                  unsigned int L,
                  unsigned int Mpair)
     : ResonancePdf("kMatrix", name, a_r, a_i) {
@@ -126,7 +124,7 @@ kMatrix::kMatrix(std::string name,
 
     registerFunction("ptr_to_kMatrix_res", ptr_to_kMatrix_res);
 
-//    initialize();
+    initialize();
     }
 
 } // namespace Resonances
