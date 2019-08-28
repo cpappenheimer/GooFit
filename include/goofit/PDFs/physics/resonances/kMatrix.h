@@ -24,8 +24,6 @@ class kMatrix : public ResonancePdf {
             Variable s0_scatt,
             std::vector<Variable> fscat,
             std::vector<Variable> poles,
-            Variable mass,
-            Variable width,
             unsigned int L,
             unsigned int Mpair);
 
