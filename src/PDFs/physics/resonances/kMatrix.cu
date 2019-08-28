@@ -52,7 +52,7 @@ __device__ fpcomplex kMatrixRes(fptype m12, fptype m13, fptype m23, ParameterCon
     for(int i = 0; i < 5; i++) {
         for(int j = 0; j < 5; j++) {
             for(int k = 0; k < 5; k++)
-                kMatrix(i, j) += couplings(k, i) * couplings(k, j) / (pmasses(k) - s);
+                kMatrix(i, j) += couplings(k, i) * couplings(k, j) / (POW2(pmasses(k)) - s);
             if(i == 0 || j == 0) // Scattering term
                 kMatrix(i, j) += fscat(i + j) * (1 - s0_scatt) / (s - s0_scatt);
         }
