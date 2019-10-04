@@ -209,7 +209,8 @@ __host__ Amp4Body_TD::Amp4Body_TD(std::string n,
                                   MixingTimeResolution *Tres,
                                   GooPdf *efficiency,
                                   Observable *mistag,
-                                  unsigned int MCeventsNorm)
+				  int normSeed,
+				  unsigned int MCeventsNorm)
     : Amp4BodyBase("Amp4Body_TD", n)
     , decayInfo(decay)
     , resolution(Tres)
@@ -433,9 +434,10 @@ __host__ Amp4Body_TD::Amp4Body_TD(std::string n,
     // fprintf(stderr,"#Amp's %i, #LS %i, #SF %i \n", AmpMap.size(), components.size()-1, SpinFactors.size() );
 
     std::vector<mcbooster::GReal_t> masses(decayInfo.particle_masses.begin() + 1, decayInfo.particle_masses.end());
-    mcbooster::PhaseSpace phsp(decayInfo.particle_masses[0], masses, MCeventsNorm, generation_offset);
+    mcbooster::PhaseSpace phsp(decayInfo.particle_masses[0], masses, MCeventsNorm, normSeed);
     phsp.Generate(mcbooster::Vector4R(decayInfo.particle_masses[0], 0.0, 0.0, 0.0));
     phsp.Unweight();
+    GOOFIT_INFO("Generated MC events for normalization using seed {}.", phsp.GetSeed());
 
     auto nAcc                     = phsp.GetNAccepted();
     mcbooster::BoolVector_d flags = phsp.GetAccRejFlags();
@@ -717,6 +719,10 @@ __host__ fptype Amp4Body_TD::normalize() {
     host_normalizations[normalIdx + 1] = 1.0 / ret;
     cachedNormalization                = 1.0 / ret;
     // printf("end of normalize %f\n", ret);
+    
+    GOOFIT_INFO("# MC events used for normalization: {}", MCevents);
+    GOOFIT_INFO("Norm value: {}", ret);
+
     return ret;
 }
 
@@ -726,11 +732,8 @@ __host__
     copyParams();
 
     std::vector<mcbooster::GReal_t> masses(decayInfo.particle_masses.begin() + 1, decayInfo.particle_masses.end());
-    mcbooster::PhaseSpace phsp(decayInfo.particle_masses[0], masses, numEvents, generation_offset);
-    if(seed != 0)
-        phsp.SetSeed(seed);
-    else
-        GOOFIT_INFO("Current generator seed {}, offset {}", phsp.GetSeed(), generation_offset);
+    mcbooster::PhaseSpace phsp(decayInfo.particle_masses[0], masses, numEvents, seed);
+    GOOFIT_INFO("Current generator seed {}, offset {}", phsp.GetSeed(), generation_offset);
 
     phsp.Generate(mcbooster::Vector4R(decayInfo.particle_masses[0], 0.0, 0.0, 0.0));
 
