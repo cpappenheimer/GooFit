@@ -117,7 +117,7 @@ __device__ fptype device_threegauss_resolution(fptype coshterm,
 __device__ device_resfunction_ptr ptr_to_threegauss = device_threegauss_resolution;
 
 ThreeGaussResolution::ThreeGaussResolution(
-    Variable cf, Variable tf, Variable cb, Variable cs, Variable tb, Variable ts, Variable ob, Variable os)
+    Variable cf, Variable tf, Variable cb, Variable cs, Variable tb, Variable ts, Variable ob, Variable os, Variable sb)
     : MixingTimeResolution("ThreeGaussResolution")
     , coreFraction(cf)
     , tailFraction(tf)
@@ -126,7 +126,8 @@ ThreeGaussResolution::ThreeGaussResolution(
     , tailBias(tb)
     , tailScaleFactor(ts)
     , outBias(ob)
-    , outScaleFactor(os) {
+    , outScaleFactor(os)
+    , selectionBias(sb) {
     initIndex();
 
     registerFunction("ptr_to_threegauss", ptr_to_threegauss);
