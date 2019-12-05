@@ -143,6 +143,7 @@ void ThreeGaussResolution::createParameters(PdfBase *dis) {
     registerParameter(tailScaleFactor);
     registerParameter(outBias);
     registerParameter(outScaleFactor);
+    registerParameter(selectionBias);
 }
 
 fptype ThreeGaussResolution::normalization(
@@ -152,14 +153,12 @@ fptype ThreeGaussResolution::normalization(
     // Distinction between numerical subscribts and A,B is crucial
     // for comparing thesis math to this math!
 
-/*
-    fptype timeIntegralOne = tau / (1 - ymixing * ymixing);
-    fptype timeIntegralTwo = tau / (1 + xmixing * xmixing);
-    fptype timeIntegralThr = ymixing * timeIntegralOne;
-    fptype timeIntegralFou = xmixing * timeIntegralTwo;
-*/
+    //fptype timeIntegralOne = tau / (1 - ymixing * ymixing);
+    //fptype timeIntegralTwo = tau / (1 + xmixing * xmixing);
+    //fptype timeIntegralThr = ymixing * timeIntegralOne;
+    //fptype timeIntegralFou = xmixing * timeIntegralTwo;
 
-    fptype selBias = selectionBias->value;
+    fptype selBias = selectionBias.getValue();
     fptype timeIntegralOne = (selBias + 1/tau) / (selBias*selBias + 2*selBias/tau + (1 - ymixing*ymixing)/(tau*tau)); 
     fptype timeIntegralTwo = (selBias + 1/tau) / (selBias*selBias + 2*selBias/tau + (1 + xmixing*xmixing)/(tau*tau));
     fptype timeIntegralThr = (ymixing/tau) / (selBias*selBias + 2*selBias/tau + (1 - ymixing*ymixing)/(tau*tau));
