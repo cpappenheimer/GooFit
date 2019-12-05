@@ -19,7 +19,7 @@ the scope of this documentation.
 class ThreeGaussResolution : public MixingTimeResolution {
   public:
     ThreeGaussResolution(
-        Variable cf, Variable tf, Variable cb, Variable cs, Variable tb, Variable ts, Variable ob, Variable os);
+        Variable cf, Variable tf, Variable cb, Variable cs, Variable tb, Variable ts, Variable ob, Variable os, Variable sb);
     ~ThreeGaussResolution() override;
 
     fptype normalization(
@@ -35,5 +35,6 @@ class ThreeGaussResolution : public MixingTimeResolution {
     Variable tailScaleFactor;
     Variable outBias;
     Variable outScaleFactor;
+    Variable selectionBias;
 };
 } // namespace GooFit
