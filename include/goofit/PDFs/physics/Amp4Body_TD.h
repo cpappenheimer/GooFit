@@ -28,6 +28,14 @@ class SFCalculator_TD;
 class NormIntegrator_TD;
 class Lineshape;
 
+struct MCNormBatchResult {
+  const int _numAcc;
+  const fptype _normValue;
+  MCNormBatchResult(int numAcc, fptype normValue)
+  : _numAcc(numAcc),
+    _normValue(normValue) {}
+};
+
 class Amp4Body_TD : public Amp4BodyBase {
   public:
     Amp4Body_TD(std::string n,
@@ -36,17 +44,15 @@ class Amp4Body_TD : public Amp4BodyBase {
                 MixingTimeResolution *r,
                 GooPdf *eff,
                 Observable *mistag,
-		int normSeed,
-                unsigned int MCeventsNorm = 5e6);
+		std::vector<int> normSeeds,
+                unsigned int mcEventsNormPerBatch);
     // Note that 'efficiency' refers to anything which depends on (m12, m13) and multiplies the
     // coherent sum. The caching method requires that it be done this way or the ProdPdf
     // normalization will get *really* confused and give wrong answers.
 
     __host__ fptype normalize() override;
-
     __host__ void setDataSize(unsigned int dataSize, unsigned int evtSize = 8);
     __host__ void setForceIntegrals(bool f = true) { forceRedoIntegrals = f; }
-    __host__ int getMCevents() { return MCevents; }
     __host__ void setGenerationOffset(int off) { generation_offset = off; }
     __host__ void setMaxWeight(fptype wmax) { maxWeight = wmax; }
 
@@ -56,34 +62,27 @@ class Amp4Body_TD : public Amp4BodyBase {
 
     __host__ void populateArrays() override;
 
+    __host__ int getNumAccNormEvents() const { return _numAccNormEvents; }
+
+    static void  printDeviceVecComplexVals(thrust::device_vector<fpcomplex>::const_iterator first, thrust::device_vector<fpcomplex>::const_iterator last,
+				     thrust::iterator_difference<thrust::device_vector<fpcomplex>::const_iterator>::type stride,
+				     const std::string &codeLoc);
+
   protected:
   private:
+    __host__ MCNormBatchResult computeNormBatch(unsigned int batchNum);
+    __host__ void computeValues();
+
     std::map<std::string, std::pair<std::vector<unsigned int>, std::vector<unsigned int>>> AmpMap;
-    std::map<std::string, unsigned int> compMap;
-    // std::map<unsigned int, unsigned int> massmap;
-    std::map<std::string, unsigned int> SpinMap;
     std::vector<SpinFactor *> SpinFactors;
     std::vector<Lineshape *> LineShapes;
     std::vector<AmpCalc_TD *> AmpCalcs;
     NormIntegrator_TD *Integrator;
     std::vector<SFCalculator_TD *> sfcalculators;
     std::vector<LSCalculator_TD *> lscalculators;
-
     unsigned int efficiencyFunction;
-
-    // store normalization events
-    mcbooster::RealVector_d norm_M12;
-    mcbooster::RealVector_d norm_M34;
-    mcbooster::RealVector_d norm_CosTheta12;
-    mcbooster::RealVector_d norm_CosTheta34;
-    mcbooster::RealVector_d norm_phi;
-    // store spin and lineshape values for normalization
-    mutable mcbooster::RealVector_d norm_SF;
-    mutable mcbooster::mc_device_vector<fpcomplex> norm_LS;
-
     DecayInfo4t decayInfo;
     MixingTimeResolution *resolution;
-    int MCevents;
     // Following variables are useful if masses and widths, involved in difficult BW calculation,
     // change infrequently while amplitudes, only used in adding BW results together, change rapidly.
     thrust::device_vector<fpcomplex> *cachedResSF{nullptr}; // Caches the BW values and Spins for each event.
@@ -98,6 +97,12 @@ class Amp4Body_TD : public Amp4BodyBase {
     int cacheToUse{0};
     unsigned int generation_offset{0};
     double maxWeight{0};
+    int _numAccNormEvents{0};
+
+    const std::vector<int> _NORM_SEEDS;
+    const unsigned int _MC_EVENTS_NORM_PER_BATCH;
+
+    static const int _PRINT_LIMIT;
 };
 
 } // namespace GooFit

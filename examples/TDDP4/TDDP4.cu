@@ -152,7 +152,8 @@ int main(int argc, char **argv) {
 
     TruthResolution dat;
     PolynomialPdf eff{"constantEff", observables, coefficients, offsets, 0};
-    Amp4Body_TD dp{"test", observables, DK3P_DI, &dat, &eff, 0, 1};
+    vector<int> normSeeds{1};
+    Amp4Body_TD dp{"test", observables, DK3P_DI, &dat, &eff, 0, normSeeds, 1};
 
     TFile file(output, "RECREATE");
     TTree tree("events", "events");

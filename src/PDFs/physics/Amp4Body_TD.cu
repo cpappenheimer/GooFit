@@ -40,10 +40,31 @@ class.
 #include <goofit/PDFs/physics/detail/SFCalculator_TD.h>
 #include <goofit/PDFs/physics/lineshapes/Lineshape.h>
 #include <goofit/PDFs/physics/resonances/Resonance.h>
+#include "goofit/MathUtils.h"
 
 #include <cstdarg>
 
 namespace GooFit {
+
+const int Amp4Body_TD::_PRINT_LIMIT = 100;
+
+void Amp4Body_TD::printDeviceVecComplexVals(thrust::device_vector<fpcomplex>::const_iterator first, thrust::device_vector<fpcomplex>::const_iterator last,
+					    thrust::iterator_difference<thrust::device_vector<fpcomplex>::const_iterator>::type stride,
+					    const std::string &codeLoc)
+{
+  //int numPrinted = 0;
+  
+  auto pStridedRange = strided_range<thrust::device_vector<fpcomplex>::const_iterator>(first, last, stride);
+
+  for (auto pIter = pStridedRange.begin(); pIter != pStridedRange.end(); pIter = std::next(pIter))
+  {
+    fpcomplex entry = *pIter;
+    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << codeLoc << ": "
+	      << entry.real() << ", " << entry.imag() << std::endl;
+    //numPrinted++;
+  }
+  std::cout << std::endl;
+}
 
 struct genExp {
     fptype gamma;
@@ -209,12 +230,14 @@ __host__ Amp4Body_TD::Amp4Body_TD(std::string n,
                                   MixingTimeResolution *Tres,
                                   GooPdf *efficiency,
                                   Observable *mistag,
-				  int normSeed,
-				  unsigned int MCeventsNorm)
+				  std::vector<int> normSeeds,
+				  unsigned int mcEventsNormPerBatch)
     : Amp4BodyBase("Amp4Body_TD", n)
     , decayInfo(decay)
     , resolution(Tres)
     , totalEventSize(observables.size() + 2) // number of observables plus eventnumber
+    , _NORM_SEEDS(normSeeds)
+    , _MC_EVENTS_NORM_PER_BATCH(mcEventsNormPerBatch)
 {
     // should include m12, m34, cos12, cos34, phi, eventnumber, dtime, sigmat. In this order!
     for(auto &observable : observables) {
@@ -431,56 +454,6 @@ __host__ Amp4Body_TD::Amp4Body_TD(std::string n,
         AmpCalcs.push_back(new AmpCalc_TD(nPermVec[i], amp_idx_start[i]));
     }
 
-    // fprintf(stderr,"#Amp's %i, #LS %i, #SF %i \n", AmpMap.size(), components.size()-1, SpinFactors.size() );
-
-    std::vector<mcbooster::GReal_t> masses(decayInfo.particle_masses.begin() + 1, decayInfo.particle_masses.end());
-    mcbooster::PhaseSpace phsp(decayInfo.particle_masses[0], masses, MCeventsNorm, normSeed);
-    phsp.Generate(mcbooster::Vector4R(decayInfo.particle_masses[0], 0.0, 0.0, 0.0));
-    phsp.Unweight();
-    GOOFIT_INFO("Generated MC events for normalization using seed {}.", phsp.GetSeed());
-
-    auto nAcc                     = phsp.GetNAccepted();
-    mcbooster::BoolVector_d flags = phsp.GetAccRejFlags();
-    auto d1                       = phsp.GetDaughters(0);
-    auto d2                       = phsp.GetDaughters(1);
-    auto d3                       = phsp.GetDaughters(2);
-    auto d4                       = phsp.GetDaughters(3);
-
-    auto zip_begin = thrust::make_zip_iterator(thrust::make_tuple(d1.begin(), d2.begin(), d3.begin(), d4.begin()));
-    auto zip_end   = zip_begin + d1.size();
-    auto new_end   = thrust::remove_if(zip_begin, zip_end, flags.begin(), thrust::logical_not<bool>());
-
-    d1.erase(thrust::get<0>(new_end.get_iterator_tuple()), d1.end());
-    d2.erase(thrust::get<1>(new_end.get_iterator_tuple()), d2.end());
-    d3.erase(thrust::get<2>(new_end.get_iterator_tuple()), d3.end());
-    d4.erase(thrust::get<3>(new_end.get_iterator_tuple()), d4.end());
-
-    mcbooster::ParticlesSet_d pset(4);
-    pset[0] = &d1;
-    pset[1] = &d2;
-    pset[2] = &d3;
-    pset[3] = &d4;
-
-    norm_M12        = mcbooster::RealVector_d(nAcc);
-    norm_M34        = mcbooster::RealVector_d(nAcc);
-    norm_CosTheta12 = mcbooster::RealVector_d(nAcc);
-    norm_CosTheta34 = mcbooster::RealVector_d(nAcc);
-    norm_phi        = mcbooster::RealVector_d(nAcc);
-
-    mcbooster::VariableSet_d VarSet(5);
-    VarSet[0] = &norm_M12;
-    VarSet[1] = &norm_M34;
-    VarSet[2] = &norm_CosTheta12;
-    VarSet[3] = &norm_CosTheta34;
-    VarSet[4] = &norm_phi;
-
-    Dim5 eval = Dim5();
-    mcbooster::EvaluateArray<Dim5>(eval, pset, VarSet);
-
-    norm_SF  = mcbooster::RealVector_d(nAcc * SpinFactors.size());
-    norm_LS  = mcbooster::mc_device_vector<fpcomplex>(nAcc * (components.size() - 1));
-    MCevents = nAcc;
-
     setSeparateNorm();
 }
 
@@ -527,203 +500,271 @@ __host__ void Amp4Body_TD::setDataSize(unsigned int dataSize, unsigned int evtSi
     setForceIntegrals();
 }
 
+__host__ MCNormBatchResult Amp4Body_TD::computeNormBatch(unsigned int batchNum)
+{
+  // generate the mc events used for normalization
+  std::vector<mcbooster::GReal_t> masses(decayInfo.particle_masses.begin() + 1, decayInfo.particle_masses.end());
+  mcbooster::PhaseSpace phsp(decayInfo.particle_masses[0], masses, _MC_EVENTS_NORM_PER_BATCH, _NORM_SEEDS[batchNum]);
+  phsp.Generate(mcbooster::Vector4R(decayInfo.particle_masses[0], 0.0, 0.0, 0.0));
+  phsp.Unweight();
+
+  auto nAcc                     = phsp.GetNAccepted();
+  mcbooster::BoolVector_d flags = phsp.GetAccRejFlags();
+  auto d1                       = phsp.GetDaughters(0);
+  auto d2                       = phsp.GetDaughters(1);
+  auto d3                       = phsp.GetDaughters(2);
+  auto d4                       = phsp.GetDaughters(3);
+
+  auto zip_begin = thrust::make_zip_iterator(thrust::make_tuple(d1.begin(), d2.begin(), d3.begin(), d4.begin()));
+  auto zip_end   = zip_begin + d1.size();
+  auto new_end   = thrust::remove_if(zip_begin, zip_end, flags.begin(), thrust::logical_not<bool>());
+
+  d1.erase(thrust::get<0>(new_end.get_iterator_tuple()), d1.end());
+  d2.erase(thrust::get<1>(new_end.get_iterator_tuple()), d2.end());
+  d3.erase(thrust::get<2>(new_end.get_iterator_tuple()), d3.end());
+  d4.erase(thrust::get<3>(new_end.get_iterator_tuple()), d4.end());
+
+  mcbooster::ParticlesSet_d pset(4);
+  pset[0] = &d1;
+  pset[1] = &d2;
+  pset[2] = &d3;
+  pset[3] = &d4;
+
+  mcbooster::RealVector_d norm_M12        = mcbooster::RealVector_d(nAcc);
+  mcbooster::RealVector_d norm_M34        = mcbooster::RealVector_d(nAcc);
+  mcbooster::RealVector_d norm_CosTheta12 = mcbooster::RealVector_d(nAcc);
+  mcbooster::RealVector_d norm_CosTheta34 = mcbooster::RealVector_d(nAcc);
+  mcbooster::RealVector_d norm_phi        = mcbooster::RealVector_d(nAcc);
+
+  mcbooster::VariableSet_d VarSet(5);
+  VarSet[0] = &norm_M12;
+  VarSet[1] = &norm_M34;
+  VarSet[2] = &norm_CosTheta12;
+  VarSet[3] = &norm_CosTheta34;
+  VarSet[4] = &norm_phi;
+
+  Dim5 eval = Dim5();
+  mcbooster::EvaluateArray<Dim5>(eval, pset, VarSet);
+
+  mcbooster::RealVector_d norm_SF = mcbooster::RealVector_d(nAcc * SpinFactors.size());
+  mcbooster::mc_device_vector<fpcomplex> norm_LS = mcbooster::mc_device_vector<fpcomplex>(nAcc * (components.size() - 1));
+
+  // just some thrust iterators for the calculation.
+  thrust::counting_iterator<int> eventIndex(0);
+
+  // Calculate spinfactors for normalization events
+  for(int i = 0; i < SpinFactors.size(); ++i) {
+      NormSpinCalculator_TD nsc = NormSpinCalculator_TD();
+      nsc.setDalitzId(getFunctionIndex());
+      nsc.setSpinFactorId(SpinFactors[i]->getFunctionIndex());
+
+      thrust::transform(
+			thrust::make_zip_iterator(thrust::make_tuple(norm_M12.begin(),
+								     norm_M34.begin(),
+								     norm_CosTheta12.begin(),
+								     norm_CosTheta34.begin(),
+								     norm_phi.begin())),
+			thrust::make_zip_iterator(thrust::make_tuple(
+								     norm_M12.end(), norm_M34.end(), norm_CosTheta12.end(), norm_CosTheta34.end(), norm_phi.end())),
+			(norm_SF.begin() + (i * nAcc)),	nsc);
+  }
+
+  // lineshape value calculation for the normalization
+  for(int i = 0; i < LineShapes.size(); ++i) {
+    NormLSCalculator_TD ns;
+    ns.setDalitzId(getFunctionIndex());
+    ns.setResonanceId(LineShapes[i]->getFunctionIndex());
+    
+    thrust::transform(
+		      thrust::make_zip_iterator(thrust::make_tuple(norm_M12.begin(),
+								   norm_M34.begin(),
+								   norm_CosTheta12.begin(),
+								   norm_CosTheta34.begin(),
+								   norm_phi.begin())),
+		      thrust::make_zip_iterator(thrust::make_tuple(
+								   norm_M12.end(), norm_M34.end(), norm_CosTheta12.end(), norm_CosTheta34.end(), norm_phi.end())),
+		      (norm_LS.begin() + (i * nAcc)), ns);
+  }
+
+  thrust::constant_iterator<fptype *> normSFaddress(thrust::raw_pointer_cast(norm_SF.data()));
+  thrust::constant_iterator<fpcomplex *> normLSaddress(thrust::raw_pointer_cast(norm_LS.data()));
+  thrust::constant_iterator<int> NumNormEvents(nAcc);
+
+  // this does the rest of the integration with the cached lineshape and spinfactor values for the normalization
+  // events
+  auto ret = 1.0;
+
+  thrust::tuple<fptype, fptype, fptype, fptype> dummy(0, 0, 0, 0);
+  FourDblTupleAdd MyFourDoubleTupleAdditionFunctor;
+  thrust::tuple<fptype, fptype, fptype, fptype> sumIntegral;
+  
+  Integrator->setDalitzId(getFunctionIndex());
+
+  sumIntegral = thrust::transform_reduce(
+					 thrust::make_zip_iterator(thrust::make_tuple(eventIndex, NumNormEvents, normSFaddress, normLSaddress)),
+					 thrust::make_zip_iterator(
+								   thrust::make_tuple(eventIndex + nAcc, NumNormEvents, normSFaddress, normLSaddress)),
+					 *Integrator,
+					 dummy,
+					 MyFourDoubleTupleAdditionFunctor);
+
+    fptype tau     = parametersList[0];
+    fptype xmixing = parametersList[1];
+    fptype ymixing = parametersList[2];
+
+    ret = resolution->normalization(thrust::get<0>(sumIntegral),
+				    thrust::get<1>(sumIntegral),
+				    thrust::get<2>(sumIntegral),
+				    thrust::get<3>(sumIntegral),
+				    tau,
+				    xmixing,
+				    ymixing);
+
+    phsp.FreeResources();
+
+    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Norm value for batch " << batchNum << ": " << ret << std::endl;
+    std::cout << "Num acc for batch " << batchNum << ": " << nAcc << std::endl << std::endl;
+
+    return MCNormBatchResult(nAcc, ret);
+}
+
+__host__ void Amp4Body_TD::computeValues()
+{
+  // check if MINUIT changed any parameters and if so remember that so we know
+  // we need to recalculate that lineshape and every amp, that uses that lineshape
+  for(unsigned int i = 0; i < components.size() - 1; ++i) {
+    redoIntegral[i] = forceRedoIntegrals;
+
+    if(!(components[i]->parametersChanged()))
+      continue;
+
+    redoIntegral[i] = true;
+  }
+
+  SpinsCalculated    = !forceRedoIntegrals;
+  forceRedoIntegrals = false;
+
+  // just some thrust iterators for the calculation.
+  thrust::constant_iterator<fptype *> dataArray(dev_event_array);
+  thrust::constant_iterator<int> eventSize(totalEventSize);
+  thrust::counting_iterator<int> eventIndex(0);
+
+  // Calculate spinfactors only once for normalization events and real events
+  // strided_range is a template implemented in DalitsPlotHelpers.hh
+  // it basically goes through the array by increasing the pointer by a certain amount instead of just one step.
+  if(!SpinsCalculated) {
+    for(int i = 0; i < SpinFactors.size(); ++i) {
+      unsigned int offset = LineShapes.size();
+      unsigned int stride = LineShapes.size() + SpinFactors.size();
+
+      GOOFIT_TRACE("SpinFactors - stride: {}", stride);
+      sfcalculators[i]->setDalitzId(getFunctionIndex());
+      sfcalculators[i]->setSpinFactorId(SpinFactors[i]->getFunctionIndex());
+
+      thrust::transform(
+			thrust::make_zip_iterator(thrust::make_tuple(eventIndex, dataArray, eventSize)),
+			thrust::make_zip_iterator(thrust::make_tuple(eventIndex + numEntries, dataArray, eventSize)),
+			strided_range<thrust::device_vector<fpcomplex>::iterator>(
+										  cachedResSF->begin() + offset + i, cachedResSF->end(), stride)
+			.begin(),
+			*(sfcalculators[i]));
+
+
+      //printDeviceVecComplexVals(cachedResSF->begin()+offset+i, 
+      //			cachedResSF->end(),
+      //			stride,
+      //			"Cached res SF (in SF block)");
+    }
+    SpinsCalculated = true;
+  }
+
+  // this calculates the values of the lineshapes and stores them in the array. It is recalculated every time
+  // parameters change.
+  for(int i = 0; i < LineShapes.size(); ++i) {
+    if(redoIntegral[i]) {
+      lscalculators[i]->setDalitzId(getFunctionIndex());
+      lscalculators[i]->setResonanceId(LineShapes[i]->getFunctionIndex());
+
+      unsigned int stride = LineShapes.size() + SpinFactors.size();
+
+      GOOFIT_TRACE("LineShape[{}] - stride: {}", LineShapes[i]->getName().c_str(), stride);
+      thrust::transform(
+			thrust::make_zip_iterator(thrust::make_tuple(eventIndex, dataArray, eventSize)),
+			thrust::make_zip_iterator(thrust::make_tuple(eventIndex + numEntries, dataArray, eventSize)),
+			strided_range<thrust::device_vector<fpcomplex>::iterator>(
+										  cachedResSF->begin() + i, cachedResSF->end(), stride)
+			.begin(),
+			*(lscalculators[i]));
+
+
+      //printDeviceVecComplexVals(cachedResSF->begin()+i,
+      //				cachedResSF->end(),
+      //				stride,
+      //			"Cached res SF (in LS block)");
+    }
+  }
+
+  // this is a little messy but it basically checks if the amplitude includes one of the recalculated lineshapes and
+  // if so recalculates that amplitude
+  for(int i = 0; i < components.size() - 2; ++i) {
+    bool redo = false;
+    for(unsigned int j = 0; j < components.size() - 2; j++) {
+      if(!redoIntegral[j])
+	continue;
+      redo = true;
+      break;
+    }
+
+    if(redo) {
+      AmpCalcs[i]->setDalitzId(getFunctionIndex());
+      thrust::transform(eventIndex,
+			eventIndex + numEntries,
+			strided_range<thrust::device_vector<fpcomplex>::iterator>(
+										  cachedAMPs->begin() + i, cachedAMPs->end(), AmpCalcs.size())
+			.begin(),
+			*(AmpCalcs[i]));
+
+      
+      //printDeviceVecComplexVals(cachedAMPs->begin()+i,
+      //			cachedAMPs->end(),
+      //			AmpCalcs.size(),
+      //			"Cached AMPs (in AMP block)");
+    }
+  }
+}
+
 // this is where the actual magic happens. This function does all the calculations!
 __host__ fptype Amp4Body_TD::normalize() {
     if(cachedResSF == nullptr)
         throw GeneralError("You must call dp.setDataSize(currData.getNumEvents(), N) first!");
-    // fprintf(stderr, "start normalize\n");
+
     recursiveSetNormalization(1.0); // Not going to normalize efficiency,
     // so set normalization factor to 1 so it doesn't get multiplied by zero.
+
     // Copy at this time to ensure that the SpecialResonanceCalculators, which need the efficiency,
     // don't get zeroes through multiplying by the normFactor.
     host_normalizations.sync(d_normalizations);
 
-    // check if MINUIT changed any parameters and if so remember that so we know
-    // we need to recalculate that lineshape and every amp, that uses that lineshape
-    for(unsigned int i = 0; i < components.size() - 1; ++i) {
-        redoIntegral[i] = forceRedoIntegrals;
+    computeValues();
 
-        if(!(components[i]->parametersChanged()))
-            continue;
-
-        redoIntegral[i] = true;
+    int totalNumAcc = 0;
+    std::vector<fptype> normVals(_NORM_SEEDS.size()); 
+    for (int b = 0; b < _NORM_SEEDS.size(); b++)
+    {
+      MCNormBatchResult result = computeNormBatch(b);
+      totalNumAcc += result._numAcc;
+      normVals[b] = result._normValue;
     }
+    _numAccNormEvents = totalNumAcc;
+    fptype normResultsSum = MathUtils::doNeumaierSummation(normVals);
+    fptype normValue = normResultsSum / totalNumAcc;
 
-    SpinsCalculated    = !forceRedoIntegrals;
-    forceRedoIntegrals = false;
+    host_normalizations[normalIdx + 1] = 1.0 / normValue;
+    cachedNormalization                = 1.0 / normValue;
 
-    // just some thrust iterators for the calculation.
-    thrust::constant_iterator<fptype *> dataArray(dev_event_array);
-    thrust::constant_iterator<int> eventSize(totalEventSize);
-    thrust::counting_iterator<int> eventIndex(0);
+    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Norm value: " << normValue << std::endl;
 
-    // Calculate spinfactors only once for normalization events and real events
-    // strided_range is a template implemented in DalitsPlotHelpers.hh
-    // it basically goes through the array by increasing the pointer by a certain amount instead of just one step.
-    if(!SpinsCalculated) {
-        for(int i = 0; i < SpinFactors.size(); ++i) {
-            unsigned int offset = LineShapes.size();
-            unsigned int stride = LineShapes.size() + SpinFactors.size();
-
-            GOOFIT_TRACE("SpinFactors - stride: {}", stride);
-            sfcalculators[i]->setDalitzId(getFunctionIndex());
-            sfcalculators[i]->setSpinFactorId(SpinFactors[i]->getFunctionIndex());
-
-            thrust::transform(
-                thrust::make_zip_iterator(thrust::make_tuple(eventIndex, dataArray, eventSize)),
-                thrust::make_zip_iterator(thrust::make_tuple(eventIndex + numEntries, dataArray, eventSize)),
-                strided_range<thrust::device_vector<fpcomplex>::iterator>(
-                    cachedResSF->begin() + offset + i, cachedResSF->end(), stride)
-                    .begin(),
-                *(sfcalculators[i]));
-
-            if(!generation_no_norm) {
-                NormSpinCalculator_TD nsc = NormSpinCalculator_TD();
-
-                nsc.setDalitzId(getFunctionIndex());
-                nsc.setSpinFactorId(SpinFactors[i]->getFunctionIndex());
-
-                thrust::transform(
-                    thrust::make_zip_iterator(thrust::make_tuple(norm_M12.begin(),
-                                                                 norm_M34.begin(),
-                                                                 norm_CosTheta12.begin(),
-                                                                 norm_CosTheta34.begin(),
-                                                                 norm_phi.begin())),
-                    thrust::make_zip_iterator(thrust::make_tuple(
-                        norm_M12.end(), norm_M34.end(), norm_CosTheta12.end(), norm_CosTheta34.end(), norm_phi.end())),
-                    (norm_SF.begin() + (i * MCevents)),
-                    nsc);
-            }
-        }
-
-        SpinsCalculated = true;
-    }
-
-    // fprintf(stderr, "normalize after spins\n");
-
-    // this calculates the values of the lineshapes and stores them in the array. It is recalculated every time
-    // parameters change.
-    for(int i = 0; i < LineShapes.size(); ++i) {
-        if(redoIntegral[i]) {
-            lscalculators[i]->setDalitzId(getFunctionIndex());
-            lscalculators[i]->setResonanceId(LineShapes[i]->getFunctionIndex());
-
-            unsigned int stride = LineShapes.size() + SpinFactors.size();
-
-            GOOFIT_TRACE("LineShape[{}] - stride: {}", LineShapes[i]->getName().c_str(), stride);
-            thrust::transform(
-                thrust::make_zip_iterator(thrust::make_tuple(eventIndex, dataArray, eventSize)),
-                thrust::make_zip_iterator(thrust::make_tuple(eventIndex + numEntries, dataArray, eventSize)),
-                strided_range<thrust::device_vector<fpcomplex>::iterator>(
-                    cachedResSF->begin() + i, cachedResSF->end(), stride)
-                    .begin(),
-                *(lscalculators[i]));
-        }
-    }
-
-    // fprintf(stderr, "normalize after LS\n");
-
-    // this is a little messy but it basically checks if the amplitude includes one of the recalculated lineshapes and
-    // if so recalculates that amplitude
-    // auto AmpMapIt = AmpMap.begin();
-
-    for(int i = 0; i < components.size() - 2; ++i) {
-        bool redo = false;
-        for(unsigned int j = 0; j < components.size() - 2; j++) {
-            if(!redoIntegral[j])
-                continue;
-            redo = true;
-            break;
-        }
-
-        if(redo) {
-            AmpCalcs[i]->setDalitzId(getFunctionIndex());
-
-            thrust::transform(eventIndex,
-                              eventIndex + numEntries,
-                              strided_range<thrust::device_vector<fpcomplex>::iterator>(
-                                  cachedAMPs->begin() + i, cachedAMPs->end(), AmpCalcs.size())
-                                  .begin(),
-                              *(AmpCalcs[i]));
-        }
-    }
-
-    // fprintf(stderr, "normalize after Amps\n");
-
-    // lineshape value calculation for the normalization, also recalculated every time parameter change
-    if(!generation_no_norm) {
-        for(int i = 0; i < LineShapes.size(); ++i) {
-            if(!redoIntegral[i])
-                continue;
-
-            NormLSCalculator_TD ns;
-            ns.setDalitzId(getFunctionIndex());
-            ns.setResonanceId(LineShapes[i]->getFunctionIndex());
-
-            thrust::transform(
-                thrust::make_zip_iterator(thrust::make_tuple(norm_M12.begin(),
-                                                             norm_M34.begin(),
-                                                             norm_CosTheta12.begin(),
-                                                             norm_CosTheta34.begin(),
-                                                             norm_phi.begin())),
-                thrust::make_zip_iterator(thrust::make_tuple(
-                    norm_M12.end(), norm_M34.end(), norm_CosTheta12.end(), norm_CosTheta34.end(), norm_phi.end())),
-                (norm_LS.begin() + (i * MCevents)),
-                ns);
-        }
-    }
-
-    thrust::constant_iterator<fptype *> normSFaddress(thrust::raw_pointer_cast(norm_SF.data()));
-    thrust::constant_iterator<fpcomplex *> normLSaddress(thrust::raw_pointer_cast(norm_LS.data()));
-    thrust::constant_iterator<int> NumNormEvents(MCevents);
-
-    // this does the rest of the integration with the cached lineshape and spinfactor values for the normalization
-    // events
-    auto ret = 1.0;
-
-    if(!generation_no_norm) {
-        thrust::tuple<fptype, fptype, fptype, fptype> dummy(0, 0, 0, 0);
-        FourDblTupleAdd MyFourDoubleTupleAdditionFunctor;
-        thrust::tuple<fptype, fptype, fptype, fptype> sumIntegral;
-
-        Integrator->setDalitzId(getFunctionIndex());
-
-        sumIntegral = thrust::transform_reduce(
-            thrust::make_zip_iterator(thrust::make_tuple(eventIndex, NumNormEvents, normSFaddress, normLSaddress)),
-            thrust::make_zip_iterator(
-                thrust::make_tuple(eventIndex + MCevents, NumNormEvents, normSFaddress, normLSaddress)),
-            *Integrator,
-            dummy,
-            MyFourDoubleTupleAdditionFunctor);
-
-        // GOOFIT_TRACE("sumIntegral={}", sumIntegral);
-
-        // printf("normalize A2/#evts , B2/#evts: %.5g, %.5g\n",thrust::get<0>(sumIntegral)/MCevents,
-        // thrust::get<1>(sumIntegral)/MCevents);
-        fptype tau     = parametersList[0];
-        fptype xmixing = parametersList[1];
-        fptype ymixing = parametersList[2];
-
-        ret = resolution->normalization(thrust::get<0>(sumIntegral),
-                                        thrust::get<1>(sumIntegral),
-                                        thrust::get<2>(sumIntegral),
-                                        thrust::get<3>(sumIntegral),
-                                        tau,
-                                        xmixing,
-                                        ymixing);
-
-        // MCevents is the number of normalization events.
-        ret /= MCevents;
-    }
-
-    host_normalizations[normalIdx + 1] = 1.0 / ret;
-    cachedNormalization                = 1.0 / ret;
-    // printf("end of normalize %f\n", ret);
-    
-    GOOFIT_INFO("# MC events used for normalization: {}", MCevents);
-    GOOFIT_INFO("Norm value: {}", ret);
-
-    return ret;
+    return normValue;
 }
 
 __host__
