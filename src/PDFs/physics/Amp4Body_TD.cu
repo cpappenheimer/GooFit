@@ -622,8 +622,8 @@ __host__ MCNormBatchResult Amp4Body_TD::computeNormBatch(unsigned int batchNum)
 
     phsp.FreeResources();
 
-    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Norm value for batch " << batchNum << ": " << ret << std::endl;
-    std::cout << "Num acc for batch " << batchNum << ": " << nAcc << std::endl << std::endl;
+    //std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Norm value for batch " << batchNum << ": " << ret << std::endl;
+    //std::cout << "Num acc for batch " << batchNum << ": " << nAcc << std::endl << std::endl;
 
     return MCNormBatchResult(nAcc, ret);
 }
@@ -762,7 +762,7 @@ __host__ fptype Amp4Body_TD::normalize() {
     host_normalizations[normalIdx + 1] = 1.0 / normValue;
     cachedNormalization                = 1.0 / normValue;
 
-    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Norm value: " << normValue << std::endl;
+    //std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Norm value: " << normValue << std::endl;
 
     return normValue;
 }

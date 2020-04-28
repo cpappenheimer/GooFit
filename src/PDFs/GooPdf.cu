@@ -51,8 +51,6 @@ __host__ double GooPdf::reduce_with_metric() const {
     thrust::constant_iterator<fptype *> arrayAddress(dev_event_array);
     thrust::counting_iterator<int> eventIndex(0);
 
-    std::cout << "Event size: " << get_event_size() << std::endl;
-
 #ifdef GOOFIT_MPI
     size_t entries_to_process = m_iEventsPerTask;
 #else
@@ -239,8 +237,8 @@ __host__ double GooPdf::calculateNLL() {
                  norm,
                  host_normalizations.at(normalIdx + 1));
 
-    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Norm in calculateNLL: " << norm << std::endl
-              << "Host norm: " << host_normalizations[normalIdx + 1] << std::endl;
+    //std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Norm in calculateNLL: " << norm << std::endl
+    //          << "Host norm: " << host_normalizations[normalIdx + 1] << std::endl;
 
     if(host_normalizations[normalIdx + 1] <= 0)
         GooFit::abort(__FILE__, __LINE__, getName() + " non-positive normalization", this);
@@ -251,7 +249,7 @@ __host__ double GooPdf::calculateNLL() {
     fptype ret = reduce_with_metric();
     GOOFIT_TRACE("GooPdf::calculateNLL calling sumOfNll = {}", ret);
 
-    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Reduce with metric: " << ret << std::endl;
+    //std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(20) << "Reduce with metric: " << ret << std::endl;
 
     if(0.0 == ret)
         GooFit::abort(__FILE__, __LINE__, getName() + " zero NLL", this);
